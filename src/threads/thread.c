@@ -201,6 +201,8 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  thread_yield();
+
   return tid;
 }
 
@@ -336,13 +338,15 @@ void
 thread_set_priority (int new_priority) 
 {
   thread_current ()->priority = new_priority;
+  thread_yield();
 }
 
 /* Returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
-  return thread_current ()->priority;
+  struct thread* t = thread_current();
+  return (t->donation_priority > t->priority) ? t->donation_priority : t->priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -462,6 +466,10 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+   
+  list_init(&t->lock_list);
+  t->thread_lock = NULL;
+  t->donation_priority = PRI_MIN;
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
@@ -493,7 +501,11 @@ next_thread_to_run (void)
   if (list_empty (&ready_list))
     return idle_thread;
   else
-    return list_entry (list_pop_front (&ready_list), struct thread, elem);
+    {
+    struct list_elem* max_thread = list_max(&ready_list, thread_cmp_fnc, NULL);
+    list_remove(max_thread);
+    return list_entry(max_thread, struct thread, elem);
+    }
 }
 
 /* Completes a thread switch by activating the new thread's page
@@ -582,3 +594,19 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+bool
+comp(struct thread* first, struct thread* second)
+{
+  int f = first -> priority > first -> donation_priority ? first -> priority : first -> donation_priority;
+  int s = second -> priority > second -> donation_priority ? second -> priority : second -> donation_priority;
+  return f < s;
+}
+
+bool
+thread_cmp_fnc(const struct list_elem *a, const struct list_elem *b, void * aux UNUSED)
+{
+  struct thread* first = list_entry(a, struct thread, elem);
+  struct thread* second = list_entry(b, struct thread, elem);
+  return comp(first, second);
+}
