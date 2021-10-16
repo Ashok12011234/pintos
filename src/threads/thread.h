@@ -101,9 +101,11 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
 
-    struct list lock_list;             // to store locks that current thread has acquired 
-    struct lock *thread_lock;          // pointer on lock that thread could be locked on 
-    int donation_priority;             // priority other thread has donated 
+   
+    int donation_priority;             //priority other thread has donated 
+    struct list lock_list;             //locks that current thread has acquired 
+    struct lock *thread_lock;          //pointer on lock that thread could be locked on
+    
   };
 
 /* If false (default), use round-robin scheduler.

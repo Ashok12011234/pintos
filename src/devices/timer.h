@@ -10,12 +10,10 @@
 
 struct sleep_list_elem
 {
-	int64_t tick; // interval for thread to sleep
-	struct thread* curr_thread; // sleeping thread
-	
-	struct semaphore* sema;	//for unblocking sleeping thread
-	struct list_elem list_el;  // for inserting into list
-	
+	int64_t tick; // after how many ticks thread need to wake up
+	struct thread* curr_thread; // which thread going to sleep
+	struct semaphore* sema;	// Semaphore for unblocking sleeping thread
+	struct list_elem list_el;  // For inserting into sleeping list
 
 	
 };
