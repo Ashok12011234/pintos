@@ -345,8 +345,8 @@ thread_set_priority (int new_priority)
 int
 thread_get_priority (void) 
 {
-  struct thread* t = thread_current();
-  return (t->donation_priority > t->priority) ? t->donation_priority : t->priority;
+  struct thread* curr = thread_current();
+  return (curr->donation_priority > curr->priority) ? curr->donation_priority : curr->priority;
 }
 
 /* Sets the current thread's nice value to NICE. */
@@ -502,7 +502,7 @@ next_thread_to_run (void)
     return idle_thread;
   else
     {
-    struct list_elem* max_thread = list_max(&ready_list, thread_cmp_fnc, NULL);
+    struct list_elem* max_thread = list_max(&ready_list, thread_compare_fun, NULL);
     list_remove(max_thread);
     return list_entry(max_thread, struct thread, elem);
     }
@@ -596,7 +596,7 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 
 bool
-comp(struct thread* first, struct thread* second)
+compare(struct thread* first, struct thread* second)
 {
   int f = first -> priority > first -> donation_priority ? first -> priority : first -> donation_priority;
   int s = second -> priority > second -> donation_priority ? second -> priority : second -> donation_priority;
@@ -604,9 +604,9 @@ comp(struct thread* first, struct thread* second)
 }
 
 bool
-thread_cmp_fnc(const struct list_elem *a, const struct list_elem *b, void * aux UNUSED)
+thread_compare_fun(const struct list_elem *a, const struct list_elem *b, void * aux UNUSED)
 {
   struct thread* first = list_entry(a, struct thread, elem);
   struct thread* second = list_entry(b, struct thread, elem);
-  return comp(first, second);
+  return compare(first, second);
 }

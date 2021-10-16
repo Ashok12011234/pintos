@@ -30,8 +30,8 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-struct list sleep_list; // Sleeping threads are stored
-struct lock sleep_list_lock; // Locks sleep_list for synchronization
+struct list sleep_list; // to store sleeping threads
+struct lock sleep_list_lock; // to lock sleep_list for race conditions
 
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
@@ -90,9 +90,9 @@ timer_elapsed (int64_t then)
   return timer_ticks () - then;
 }
 
-/* Compare function for sleeping thread list */
+/* function for comparing list element according to ticks*/
 static bool
-cmp_fnc(const struct list_elem *a, const struct list_elem *b, void * aux UNUSED)
+tick_comp_fnc(const struct list_elem *a, const struct list_elem *b, void * aux UNUSED)
 {
   struct sleep_list_elem* first = list_entry(a, struct sleep_list_elem, list_el);
   struct sleep_list_elem* second = list_entry(b, struct sleep_list_elem, list_el);
@@ -110,19 +110,19 @@ timer_sleep (int64_t ticks)
   ASSERT (intr_get_level () == INTR_ON);
 
   struct thread* curr = thread_current();
-  struct semaphore sem;
-  sema_init(&sem, 0);
+  struct semaphore sema;
+  sema_init(&sema, 0);
   
   struct sleep_list_elem curr_elem;
-  curr_elem.sem = &sem;
+  curr_elem.sema = &sema;
   curr_elem.curr_thread = curr;
   curr_elem.tick = ticks + start;
 
   lock_acquire(&sleep_list_lock);
-  list_insert_ordered(&sleep_list, &curr_elem.list_el, &cmp_fnc, NULL);
+  list_insert_ordered(&sleep_list, &curr_elem.list_el, &tick_comp_fnc, NULL);
   lock_release(&sleep_list_lock);
   
-  sema_down(&sem);
+  sema_down(&sema);
 
 }
 
@@ -206,7 +206,7 @@ timer_interrupt (struct intr_frame *args UNUSED)
     struct sleep_list_elem* curr = list_entry(list_begin(&sleep_list), struct sleep_list_elem, list_el);
 
     if(ticks >= curr->tick){
-      sema_up(curr->sem);
+      sema_up(curr->sema);
       list_pop_front(&sleep_list);
       continue;
     }
