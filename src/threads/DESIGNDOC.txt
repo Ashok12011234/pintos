@@ -1,0 +1,204 @@
+
+			+--------------------+
+			|        CS 2042      |
+			| PROJECT 1: THREADS |
+			|   DESIGN DOCUMENT  |
+			+--------------------+
+				   
+---- PRELIMINARIES ----
+
+>> Please cite any offline or online sources you consulted while
+>> preparing your submission, other than the Pintos documentation, course
+>> text, lecture notes, and course staff. If you fail to do so while your
+>> soltion contains such material you will be penalized.
+
+https://oslab.kaist.ac.kr/wp-content/uploads/2020/06/2020_Pintos_Part1_Thread_01_alarm_priority.pptx
+https://www.youtube.com/watch?v=XWVjd1hk3Is
+
+			     ALARM CLOCK
+			     ===========
+
+---- DATA STRUCTURES ----
+
+>> A1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+struct sleep_list_elem
+{
+	int64_t tick; // after how many ticks thread need to wake up
+	struct thread* curr_thread; // which thread going to sleep
+	struct semaphore* sem;	// Semaphore for unblocking sleeping thread
+	struct list_elem list_el;  // For inserting into sleeping list
+
+};
+
+I have created struct sleep_list_elem for store details of threads which are going to sleep.This struct has a semaphore which block the specific thread and number of ticks after it need to 
+wake up as attributes.
+
+struct list sleep_list; // to store sleeping threads
+struct lock sleep_list_lock; // Lock for  sleep_list 
+
+I created sleep_list variable to store current sleeping threads and sleep_list_lock for lock the sleep list to avoid concurrency issues.
+
+---- ALGORITHMS ----
+
+>> A2: Briefly describe what happens in a call to timer_sleep(),
+>> including the effects of the timer interrupt handler.
+
+Old code used busy waiting in timer_sleep function.What I did is when a thread going to sleep I store it in sleep-list_elem variable with semaphore and ticks.After ,I insert this
+variable into sleep_list according to ascending order of ticks.
+In timer_interrupt function ,at each tick ,function checks the first element of sleep_list and release the thread by sema_up if thread need to wake up(ticks are passed) else stop traversing.
+
+>> A3: What steps are taken to minimize the amount of time spent in
+>> the timer interrupt handler?
+
+To minimize time I insert sleep_list_elem according to ascending order of ticks.By this we can ensure that all elements has greater remaining tick than first element.So it is enough to check
+only first element.
+
+---- SYNCHRONIZATION ----
+
+>> A4: How are race conditions avoided when multiple threads call
+>> timer_sleep() simultaneously?
+
+Even if multiple threads call timer_sleep function only one thread can access sleep_list at one time because I have used sleep_list_lock to lock sleep_list
+
+>> A5: How are race conditions avoided when a timer interrupt occurs
+>> during a call to timer_sleep()?
+
+If timer interrupts occur during a call to timer_sleep function timer_interrupt handler can't access sleep_list because sleep_list is locked by sleep_list_lock of thread which
+call timer_sleep function
+
+---- RATIONALE ----
+
+>> A6: Why did you choose this design?  In what ways is it superior to
+>> another design you considered?
+
+I inserted sleep_list_elem in a sorted manner.Then time complexity to pop correct thread  from sleep_list is reduced and amount of time spent on timer interrupt handler also reduced.
+			 PRIORITY SCHEDULING
+			 ===================
+
+---- DATA STRUCTURES ----
+
+>> B1: Copy here the declaration of each new or changed `struct' or
+>> `struct' member, global or static variable, `typedef', or
+>> enumeration.  Identify the purpose of each in 25 words or less.
+
+struct thread
+  {
+    ///////////////////
+
+    struct list lock_list;             //locks that current thread has acquired 
+    struct lock *thread_lock;          //pointer on lock that thread could be locked on
+    int donation_priority;             //priority other thread has donated 
+  }
+
+In struct thread I have added more three variables.I added lock_list to store locks that threads has aquired,*thread_lock to point the lock that thread could be locked on and 
+donation priority to store priority other thread has donated.
+
+struct lock
+  {
+    
+    /////////////
+
+    int priority;             //max prioirty 
+    struct list_elem lock_list_elem;   //list element for lock list 
+  };
+
+In struct lock I have added priority to store maximum priority  of thread which hold current lock and lock-list_elem to store list element for lock list.
+
+static void
+donate_helper(struct lock *lock, int priority)
+{
+   ///////
+}
+
+I have created donate_helper method to donate priority to solve nested donations and multiple donations.
+
+>> B2: Explain the data structure used to track priority donation.
+>> Use ASCII art to diagram a nested donation.  (Alternately, submit a
+>> .png file.)
+
+I have not created any specific data structures to track priority donation.In my implementaion I keep two priority values in struct thread by priority and donation_priority 
+variables.And I had used lock_list variable,*thread_lock pointer to save locks which thread owns and lock which thread wants.
+
+ 
+---- ALGORITHMS ----
+
+>> B3: How do you ensure that the highest priority thread waiting for
+>> a lock, semaphore, or condition variable wakes up first?
+
+Semaphore
+
+We don't need to consider sema_down because if any thread want to down specific semaphore we put that thread into sema waiters list.But problem is ,when we up semaphore ,which thread going
+to use that semaphore.For this in sema_up function I traverse through sema->waiters and select thread which has maximum priority by help of thread_cmp_fnc and then remove that thread and
+unblock it.
+
+Condition variables
+
+cond_signal function wake up a thread which has a highest priority by sorting the cond->waiters list and then pop the front element.
+
+Lock
+
+There is no issue in lock_acquire function.But there is a issue that when releasing lock which thread from wait list going to acquire that lock.This issue can be solved by sema_up function
+call.
+ 
+>> B4: Describe the sequence of events when a call to lock_acquire()
+>> causes a priority donation.  How is nested donation handled?
+
+When a call to lock_acquire causes a priority donation it calls recursive function donate_helper to donate priorities recursively.Nested donations are handled by this donate_helper function.
+After previous lock holder release the lock current thread become a lock holder.
+
+
+>> B5: Describe the sequence of events when lock_release() is called
+>> on a lock that a higher-priority thread is waiting for.
+
+When lock_release is called the current thread is no longer the holder of lock and lock's priority and donation_priority of current thread is set to PRI_MIN.Then the waiting thread
+with highest priority can aquire lock without any priority donation.
+
+---- SYNCHRONIZATION ----
+
+>> B6: Describe a potential race in thread_set_priority() and explain
+>> how your implementation avoids it.  Can you use a lock to avoid
+>> this race?
+
+I have keep a seperate variable donation_priority to track donated priority value .Therefore I never used thread_set_priority function.
+
+---- RATIONALE ----
+
+>> B7: Why did you choose this design?  In what ways is it superior to
+>> another design you considered?
+
+I didn't use seperate structures to track priority donation.Instead of track I had used some variables to already established structures such as priority to struct lock and lock_list
+,thread_lock,donation_priority to thread.Then we don't need to traverse through each struct.We can gain quick access to variables.
+
+
+			   SURVEY QUESTIONS
+			   ================
+
+Answering these questions is optional, but it will help us improve the
+course in future quarters.  Feel free to tell us anything you
+want--these questions are just to spur your thoughts. You may also
+choose to respond anonymously in the course evaluations at the end of
+the semester.
+
+>> In your opinion, was this assignment, or any one of the three problems
+>> in it, too easy or too hard?  Did it take too long or too little time?
+
+All are too hard.It takes more than 20 hour to complete.
+
+>> Did you find that working on a particular part of the assignment gave
+>> you greater insight into some aspect of OS design?
+
+>> Is there some particular fact or hint we should give students in
+>> future quarters to help them solve the problems?  Conversely, did you
+>> find any of our guidance to be misleading?
+
+Hints are not enough.I can't guess what to do.For that I search hardly in internet find more hints and guidances.My peers also help me lot.
+
+>> Do you have any suggestions for the TAs to more effectively assist
+>> students, either for future semesters or the remaining projects?
+
+I recommend to give a overview of lab.Give a guidance on what we need to do,how can we approach problem may reduce our workload.
+
+>> Any other comments?
