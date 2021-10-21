@@ -111,24 +111,17 @@ struct lock
     struct list_elem lock_list_elem;   //list element for lock list 
   };
 
-In struct lock I have added priority to store maximum priority of thread which hold current lock and lock_list_elem 
+In struct lock I have added priority to store priority of thread which hold the lock and lock_list_elem 
 to store list element for lock list.
 
-static void
-donate(struct lock *lock, int priority)
-{
-   ///////
-}
-
-I have created donate method to donate priority to solve nested donations and multiple donations.
 
 >> B2: Explain the data structure used to track priority donation.
->> Use ASCII art to diagram a nested donation.  (Alternately, submit a
->> .png file.)
+
 
 I have not created any specific data structures to track priority donation.In my implementaion I keep two priority 
 values in struct thread by priority and donation_priority variables.And I had used lock_list variable,*thread_lock 
-pointer to save locks which thread owns and lock which thread wants.
+pointer to save locks which thread owns and lock which thread wants.Plus I created priority attribute in struct lock 
+to keep the priority of thread which currently accured that lock.
 
  
 ---- ALGORITHMS ----
@@ -151,14 +144,15 @@ the front element.
 Lock
 
 There is no issue in lock_acquire function.But there is a issue that when releasing lock which thread from wait 
-list going to acquire that lock.This issue can be solved by sema_up function call.
+list going to acquire that lock.This issue can be solved by sema_up function call itself.
  
 >> B4: Describe the sequence of events when a call to lock_acquire()
->> causes a priority donation.  How is nested donation handled?
+>> causes a priority donation.
 
-When a call to lock_acquire causes a priority donation it calls recursive function donate() to donate priorities 
-recursively.Nested donations are handled by this donate function.After previous lock holder release the lock 
-current thread become a lock holder.
+When a call to lock_acquire causes a priority donation I change the priority of lock and donation priority of 
+lock_holder.If the current thread can acquire that lock after donation, previous lock holder release the lock and
+current thread become a lock holder ,thereafter I push that lock into lock_list of current thread.Else current thread 
+going to block state by sema_down function.
 
 
 >> B5: Describe the sequence of events when lock_release() is called
