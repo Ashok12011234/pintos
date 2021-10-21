@@ -189,20 +189,6 @@ lock_init (struct lock *lock)
   lock->priority = PRI_MIN;
 }
 
-/* reccursive function to donate priority */
-static void
-donate(struct lock *lock, int priority)
-{
-  if(lock == NULL)
-    return;
-
-  lock -> priority = lock -> priority > priority ? lock->priority:priority;
-  lock -> holder->donation_priority = lock ->holder->donation_priority > priority ? lock ->holder->donation_priority:priority;
-  
-
-  donate(lock->holder->thread_lock, priority);
-}
-
 
 /* Acquires LOCK, sleeping until it becomes available if
    necessary.  The lock must not already be held by the current
@@ -222,10 +208,11 @@ lock_acquire (struct lock *lock)
   struct thread * curr = thread_current();
 
   enum intr_level curr_lvl = intr_disable();
-  int prior = thread_get_priority();
+  int priority = thread_get_priority();
 
   if(!lock_try_acquire(lock)){
-    donate(lock, prior);
+    lock -> priority = lock -> priority > priority ? lock->priority:priority;
+    lock -> holder->donation_priority = lock ->holder->donation_priority > priority ? lock ->holder->donation_priority:priority;
 
     curr->thread_lock = lock;
 
